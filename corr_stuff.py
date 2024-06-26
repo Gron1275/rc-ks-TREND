@@ -16,11 +16,11 @@ correlations = list()
 other = list()
 Yother = list()
 shift = 0
-grid_points = 64
-time_range = 10000
+grid_points = 1024
+time_range = 100000
 #ks_integration.int_plot(True, 0)
 init_conditions = list()
-for i in range(1):
+for i in range(2):
     init_conditions.append(ks_integration.int_plot(False, i))
 glist = list()
 for j in range(len(init_conditions)):
@@ -34,13 +34,13 @@ for j in range(len(init_conditions)):
         # Yother.append(np.correlate(Y[shift, :70000], Y[(i + shift) % 64, :70000]))
 # plt.plot(np.arange(64),correlations)
 print(glist[0])
-# for i in range(len(init_conditions)):
-#     plt.plot(np.arange(grid_points), glist[i][0:time_range])
-# plt.plot(np.arange(grid_points), np.zeros((grid_points,)))
-# plt.title("Correlation vs. Length")
-# plt.xlabel("x")
-# plt.ylabel("Correlation strength")
-# plt.show()
+for i in range(len(init_conditions)):
+    plt.plot(np.arange(grid_points), glist[i][0:time_range])
+plt.plot(np.arange(grid_points), np.zeros((grid_points,)))
+plt.title("Correlation vs. Length")
+plt.xlabel("x")
+plt.ylabel("Correlation strength")
+plt.show()
 """Partial correlation
 Main article: Partial correlation
 If a population or data-set is characterized by more than two variables, a partial correlation coefficient measures the strength 

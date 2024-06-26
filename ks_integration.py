@@ -22,7 +22,7 @@ params = np.array([[], []], dtype = np.complex128)
 font_size = 15.
 
 
-def int_plot(plot=True, IC_seed = IC_seed):
+def int_plot(plot=True, IC_seed = IC_seed, output=False):
     u_arr, new_params = ks.kursiv_predict(
         u0 = np.random.default_rng(IC_seed).uniform(IC_bounds[0], IC_bounds[1], size = num_grid_points),
         N = num_grid_points,
@@ -46,4 +46,7 @@ def int_plot(plot=True, IC_seed = IC_seed):
             ax.set_xlabel("$t$")
             fig.colorbar(pcm, ax = ax, label = "$u(x, t)$")
             plt.show()
+    if output:
+        np.save(f"X_seed{IC_seed}", u_arr)
     return u_arr
+int_plot(plot=False,output=True,IC_seed=0)

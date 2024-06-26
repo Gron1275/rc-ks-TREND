@@ -28,7 +28,7 @@ def train_vanilla_RC(resparams, data):
     leakage of one, and regularization strength of 10^-4.'''
 # Specify reservoir parameters
 p = [0.6, 10, 0.1] # spectral radius, degree, input scaling
-approx_res_size = 7000
+approx_res_size = 1000
 resparams = {
     'num_inputs': 512,
     'radius': p[0],
@@ -41,7 +41,8 @@ resparams = {
 }
 resparams['N'] = int(np.floor(approx_res_size / resparams['num_inputs'])) * resparams['num_inputs']
 
-X = ks_integration.int_plot(False)
+# X = ks_integration.int_plot(False)
+X = np.load("X_seed11000.npy")
 
 W_out, A, W_in, res_states = train_vanilla_RC(resparams, X[:, :resparams['train_length']])
 
