@@ -16,11 +16,11 @@ correlations = list()
 other = list()
 Yother = list()
 shift = 0
-grid_points = 1024
+grid_points = 2048
 time_range = 100000
 #ks_integration.int_plot(True, 0)
 init_conditions = list()
-for i in range(2):
+for i in range(4):
     init_conditions.append(ks_integration.int_plot(False, i))
 glist = list()
 for j in range(len(init_conditions)):

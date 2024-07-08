@@ -24,17 +24,20 @@ def chop_data(data, n, m, step):
     return data[np.roll(index, -n*step + m)[0:n+2*m], :]
 
 
-def parallel_predict(out_weights, reservoir, in_weight, training_res_states, time_steps, resparams, alpha=1):
+# def parallel_predict(out_weights, reservoir, in_weight, training_res_states, time_steps, resparams, alpha=1):
+def parallel_predict(out_weights, reservoir, in_weight, final_res_states, time_steps, resparams, alpha=1):
     g = resparams['nonlinear_func']
     bias = resparams['bias']
 
-    final_res_states = list()
+
     # create a (num_reservoirs X Out weights X time step) matrix
     predictions_par = np.zeros((len(out_weights), out_weights[0].shape[0], time_steps))
 
-    for res_state in training_res_states:
-        final_res_states.append(res_state[:, -1])
-
+    # for res_state in training_res_states:
+    #     # final_res_states.append(res_state[:, -1])
+    #     final_res_states.append(res_state)
+    # instead of bringing in the whole of training states, the current fit_out_weight func & reservoir_layer
+    # is just grabbing and returning the very last entry for each bunch
     for dt in range(time_steps):
         for i in range(len(out_weights)):
             # print(f'out_weights dim: {out_weights[i].shape}')

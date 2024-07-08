@@ -10,10 +10,10 @@ import ks_etdrk4 as ks
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-num_grid_points = 512
+num_grid_points = 64
 time_step = .25
-periodicity_length = 200
-time_range = 70000
+periodicity_length = 22
+time_range = 80000
 IC_bounds = [-.6, .6]
 L_22_Lyap_Time = 20.83
 IC_seed = 11000
@@ -24,6 +24,7 @@ font_size = 15.
 
 def int_plot(plot=True, IC_seed = IC_seed, output=False):
     u_arr, new_params = ks.kursiv_predict(
+        d = periodicity_length,
         u0 = np.random.default_rng(IC_seed).uniform(IC_bounds[0], IC_bounds[1], size = num_grid_points),
         N = num_grid_points,
         tau = time_step,
@@ -47,6 +48,10 @@ def int_plot(plot=True, IC_seed = IC_seed, output=False):
             fig.colorbar(pcm, ax = ax, label = "$u(x, t)$")
             plt.show()
     if output:
-        np.save(f"X_seed{IC_seed}", u_arr)
+        np.save(f"X_seed{IC_seed}_L{periodicity_length}_Q{num_grid_points}_T{time_range}_NOWWORKING", u_arr)
     return u_arr
-int_plot(plot=False,output=True,IC_seed=0)
+#int_plot(plot=True,output=True,IC_seed=0)
+# int_plot(plot=False,output=True,IC_seed=1)
+# int_plot(plot=False,output=True,IC_seed=2)
+# int_plot(plot=False,output=True,IC_seed=3)
+int_plot(plot=False,output=True,IC_seed=4)

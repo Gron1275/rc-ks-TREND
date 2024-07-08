@@ -1,7 +1,8 @@
+from memory_profiler import profile
 import numpy as np
 
 
-def reservoir_layer(A, W_in, input, resparams):
+def reservoir_layer(A, W_in, input, resparams, batch_len,discard_length):
     """TODO"""
     N = resparams['N']
     train_length = resparams['train_length']
@@ -9,29 +10,107 @@ def reservoir_layer(A, W_in, input, resparams):
     bias = resparams['bias']
 
     # Open loop
-    res_states = np.zeros((N, train_length))
-    for i in range(train_length - 1):
+    res_states = np.zeros((N, batch_len))
+    # for i in range(train_length - 1):
+    # print(batch_len)
+    # print(f'A shape: {A.shape}')
+    # print(f'Res state shape: {res_states[0].shape}')
+    # print(f'W_in shape: {W_in.shape}')
+    # print(f'Input shape: {input[:,0].shape}')
+    for i in range(batch_len - 1):
         res_states[:, i + 1] = g(A @ res_states[:, i] + W_in @ input[:, i] + bias)
-    return res_states
+    return res_states[:, discard_length:].copy()
     # return np.concatenate((res_states, res_states**2), axis = 0)
 
-
-def fit_output_weights(resparams, res_states, data, discard=0):
+# @profile
+# def fit_output_weights(resparams, res_states, data, reservoir, W_in, batch_len=1000, batch=True, discard=0):
+def fit_output_weights(resparams, data, reservoir, W_in, loc, discard, batch_len=1000, batch=True):
     """TODO"""
-    beta = resparams['beta']
+    """arg batch_len"""
+    # list of elements where each is ndarry same size as data
+    # first batch needs to have the discarding
+    """have this call reservoir_layer so that can be batched up as well
+        for first one call res_layer w discard length
+        del *object* to delete object from memory"""
+    """discard at every time series jump"""
     N = resparams['N']
+    train_length = resparams['train_length']
+    #print(f"Input data shape: {data.shape}")
+    if batch:
+        #print(train_length // batch_len)
+        # DISCARD LEN OF 1000 GOOD
+        # SS_T = reservoir_layer(reservoir, W_in, )
+        #SS_T = np.zeros((N, N))
+        # VS_T = np.zeros((data.shape[0],N))
+        #VS_T = np.zeros((data.shape[0], N))
+        # V_batches = np.split(data, int(train_length/batch_len), axis=1)
+
+        # V_batches = np.split(data[:,(batch_len + discard):], train_length // batch_len, axis=1)
+        # temp_fix = np.split(loc[:,(batch_len + discard):train_length], int(train_length / batch_len), axis=1)
+        V_batches = np.split(data[:, (batch_len + discard):], (train_length-2000) // batch_len, axis=1)
+        temp_fix = np.split(loc[:, (batch_len + discard):train_length], int((train_length-2000) / batch_len), axis=1)
+        first_temp = loc[:, :(batch_len+discard)]
+        temp_fix.insert(0,first_temp)
+        temp_fix.insert(1,first_temp)
+        # inputs = block slice from 0 up to batch_len + discard
+        # target = data discard to batch len
+        # "pop" out first one then rest of loop goes by discard length i*blen to (i+1)*blen plus discard
+        """
+        IDK if below code will work, but worth a shot I guess
+        """
+
+        V_batches.insert(0, data[:,:(batch_len+discard)])
+        V_batches.insert(1, data[:,:(batch_len+discard)])
+
+        # for i in range(train_length//batch_len):
+        # res_state = reservoir_layer(reservoir,W_in,first_temp,resparams,batch_len=2000, discard_length=discard) # pass inputs here
+        res_state = reservoir_layer(reservoir, W_in, first_temp, resparams, batch_len=2000, discard_length=discard)  # pass inputs here
+        # res_state[::2,:] = np.square(res_state[::2,:])
+        SS_T = res_state @ res_state.T
+        #print(f'v batch size: {V_batches[0].shape}')
+        #print(f'res state size: {res_state.T.shape}')
+        # VS_T = V_batches[0] @ res_state.T
+        #print(f'Initial  size idl: {data[:,batch_len:(batch_len+discard)].shape}')
+        VS_T = data[:,batch_len:(batch_len+discard)] @ res_state.T
+        # print(f'Number of batches: {train_length//batch_len}')
+        # print(f'V batches size: {len(V_batches)}')
+        # print(f'temp fix size: {len(temp_fix)}')
+        for i in range((train_length // batch_len) - 2):
+            # print(V_batches[i+1].shape)
+            # res_state = reservoir_layer(reservoir, W_in, V_batches[i], resparams, batch_len)
+            res_state = reservoir_layer(reservoir, W_in, temp_fix[i+2], resparams, batch_len, 0)
+            # res_state[::2, :] = np.square(res_state[::2, :])
+            SS_T += res_state @ res_state.T
+            VS_T += V_batches[i+2] @ res_state.T
+    # if batch:
+    #     SS_T = np.zeros((N, N)) # idk if dimensions are right
+    #     VS_T = np.zeros((data.shape[0],N))
+    #     print(res_states.shape)
+    #     S_batches = np.split(res_states, batch_len,axis=1)
+    #     V_batches = np.split(data, batch_len, axis=1)
+    #
+    #     for i in range(int(data.shape[1]/batch_len)):
+    #         SS_T += S_batches[i] @ S_batches[i].T
+    #         VS_T += V_batches[i] @ S_batches[i].T
+    else:
+        res_states = reservoir_layer(reservoir, W_in, data, resparams, batch_len=resparams['train_length'])
+        SS_T = res_states @ res_states.T
+        VS_T = data @ res_states.T
+        res_state = res_states
+    beta = resparams['beta']
 
     # Tikhonov ridge regression using normal equations
-    W_out = data @ res_states.T @ np.linalg.pinv(res_states @ res_states.T + beta * np.identity(N))
-    return W_out
+    W_out = VS_T @ np.linalg.pinv(SS_T + beta * np.identity(N))
+    # W_out = data @ res_states.T @ np.linalg.pinv(res_states @ res_states.T + beta * np.identity(N))
+    return W_out, res_state[:, -1].copy() # returns w_out, and then an NX1 vector
 
 
-def predict(W_out, A, W_in, training_res_states, time_steps, resparams):
+def predict(W_out, A, W_in, training_res_state, time_steps, resparams):
     #predict_length parameter
     """Closed loop prediction"""
     g = resparams['nonlinear_func']
     bias = resparams['bias']
-    final_res_state = training_res_states[:, -1]
+    final_res_state = training_res_state
     # final_res_state = training_res_states[:, 1000]
 
     # predictions = np.zeros((W_out.shape[0], resparams['train_length']-1000))
