@@ -4,9 +4,11 @@ import rc_single_output_weight as rc
 import prediction_analysis
 import numpy as np
 import matplotlib.pyplot as plt
+
 #from ks_integration import periodicity_length, num_grid_points, time_step
-import parallel_predict_2 as parallel_predict
+
 #from memory_profiler import profile
+import predict_single_output_layer
 
 #@profile
 def train_parallel_rc(
@@ -18,12 +20,9 @@ def train_parallel_rc(
         discard_length: int = 1000,
         square_nodes: bool = True
         ):
-    # any way to make any of these lists into arrays and then do vectorizing stuff?
-    # nate said that might not be efficient? why?
-    # reservoirs = list()
-    # in_weights = list()
-    out_weights = list()
-    reservoirs_states = list()
+
+    #out_weights = list()
+    #reservoirs_states = list()
 
     num_inputs = resparams['num_inputs']
     degree = resparams['degree']
@@ -55,38 +54,36 @@ def train_parallel_rc(
         res_size = nodes_num,
         sigma = sigma
         )
+    W_out, reservoirs_states = rc.fit_output_weight(resparams=resparams, input=input_data, reservoir=reservoir, W_in=in_weight, discard=discard_length, batch_len=batch_len, square_nodes=False)
+    # for i in range(num_inputs // inputs_per_reservoir):
+    #     # i think that this could be done with multiprocessing. the fit output weights only differs by the parameter i
+    #     # prob try to use multiprocessing.Pool here
+    #     loc = chop_data(input_data, inputs_per_reservoir, overlap, i)
+    #     print(f'Loc shape: {loc.shape}')
+    #     # print(loc)
+    #     '''
+    #     reservoirs_states.append(rc.reservoir_layer(reservoirs[i], in_weights[i],loc,resparams))
+    #     out_weights.append(rc.fit_output_weights(resparams, reservoirs_states[i], loc))
+    #     '''
+    #     #reservoirs_states.append(rc.reservoir_layer(reservoir, in_weight, loc, resparams))
+    #     VS_T, SS_T, res_state = rc.fit_output_weights(
+    #         resparams = resparams,
+    #         W_in = in_weight,
+    #         reservoir = reservoir,
+    #         data = loc[overlap: -overlap, :train_length],
+    #         batch_len = batch_len,
+    #         loc = loc,
+    #         discard = discard_length,
+    #         square_nodes = square_nodes
+    #         )
+    #     print(f'Training stage {(i + 1) / (num_inputs // inputs_per_reservoir) * 100} % done')
+    #     reservoirs_states.append(res_state)
 
-    for i in range(num_inputs // inputs_per_reservoir):
-        # i think that this could be done with multiprocessing. the fit output weights only differs by the parameter i
-        # prob try to use multiprocessing.Pool here
-        loc = chop_data(input_data[:train_length], inputs_per_reservoir, overlap, i)
-        print(f'Loc shape: {loc.shape}')
-        # print(loc)
-        '''
-        reservoirs_states.append(rc.reservoir_layer(reservoirs[i], in_weights[i],loc,resparams))
-        out_weights.append(rc.fit_output_weights(resparams, reservoirs_states[i], loc))
-        '''
-        #reservoirs_states.append(rc.reservoir_layer(reservoir, in_weight, loc, resparams))
-        W_out, res_state = rc.fit_output_weights(
-            resparams = resparams,
-            W_in = in_weight,
-            reservoir = reservoir,
-            data = loc[overlap: -overlap, :train_length],
-            batch_len = batch_len,
-            loc = loc,
-            discard = discard_length,
-            square_nodes = square_nodes
-            )
-        print(f'Training stage {(i + 1) / (num_inputs // inputs_per_reservoir) * 100} % done')
-        reservoirs_states.append(res_state)
-        out_weights.append(W_out)
 
         # out_weights.append(rc.fit_output_weights(resparams=resparams, W_in=in_weight, reservoir=reservoir, data=loc[overlap:inputs_per_reservoir+overlap,discard_length:train_length], batch_len=batch_len))
 
+    return W_out, in_weight, reservoirs_states, reservoir
 
-    return out_weights, in_weight, reservoirs_states, reservoir
-    # for taking the output data, maybe just roll back the same way I do but compensate for the left padding then only
-    # index to [0:n]
 
 
     # reservoirs_states.append(rc.reservoir_layer()) maybe put this in a different for loop so you dont hafta regenerate everything
@@ -106,15 +103,15 @@ import time
 square_nodes = False
 time_step = 0.25
 prediction_steps = 1000
-transient_length = 500
+transient_length = 200
 num_grid_points = 512
 periodicity_length = 200
 num_reservoirs = 64
 p = [0.6, 3, .1] #1] # spectral radius, degree, input scaling
 resparams = {
-    'N': 1000, # 6.08497359577532 at 1500 w degree 3, 5.0048007681229 at degree 10
+    'N': 2000, # 6.08497359577532 at 1500 w degree 3, 5.0048007681229 at degree 10
     # for some reason sometimes increasing the num of nodes decreases accuracy. weird.
-    #num_inputs': 64,
+    'num_inputs': num_grid_points,
     'radius': p[0],
     'degree': p[1],
     'nonlinear_func': np.tanh,
@@ -129,7 +126,7 @@ resparams["num_inputs"] = num_grid_points
 
 X = ks_integration.int_plot(
     # time_range = resparams["train_length"] + transient_length,
-    time_range = 80000,
+    time_range = 40000,
     periodicity_length = periodicity_length,
     num_grid_points = num_grid_points,
     time_step = time_step,
@@ -140,7 +137,7 @@ X = ks_integration.int_plot(
 # X = ks_integration.int_plot(plot=False,IC_seed=0)
 start = time.time()
 print(X.shape)
-out_weights, in_weight, reservoirs_states, reservoir = train_parallel_rc(
+out_weight, in_weight, reservoirs_states, reservoir = train_parallel_rc(
     resparams['N'],
     resparams['overlap'],
     X,
@@ -149,10 +146,11 @@ out_weights, in_weight, reservoirs_states, reservoir = train_parallel_rc(
     discard_length = transient_length,
     square_nodes = square_nodes
     )
+print(f"out weight shape: {out_weight.shape}")
 end = time.time()
 
-predictions = parallel_predict.parallel_predict(
-    out_weights = out_weights,
+predictions = predict_single_output_layer.parallel_predict(
+    out_weight = out_weight,
     reservoir = reservoir,
     in_weight = in_weight,
     final_res_states = reservoirs_states,
@@ -164,14 +162,14 @@ actual = X[:, resparams['train_length']: resparams['train_length'] + prediction_
 print(f'Predict shape :{predictions.shape}')
 print(f'X shape: {X.shape}')
 t_pred = np.linspace(0, prediction_steps * time_step - time_step, prediction_steps)
-t_pred /= 11.11 # Lyapunov time for L=200
+t_pred /= 11.11  # Lyapunov time for L=200
 
 real = actual
 
 valid_time = prediction_analysis.valid_time(predictions, real, t_pred)
 
 fig, ax = plt.subplots(constrained_layout = True)
-ax.set_title("Kursiv_Overlay")
+ax.set_title(f"Kursiv_Overlay - VPT: {valid_time:.2f}")
 # x = np.arange((predictions-real).shape[1]) * time_step / 20.83
 x = np.arange((predictions-real).shape[1]) * time_step / 11.11
 y = np.arange((predictions-real).shape[0]) * periodicity_length / num_grid_points
@@ -187,7 +185,7 @@ print(f'Valid time: {valid_time}')
 print(f'real shape {real.shape}')
 print(f'predict shape {predictions.shape}')
 fig, ax = plt.subplots(constrained_layout = True)
-ax.set_title("Kursiv_Actual")
+ax.set_title(f"Kursiv_Actual - VPT: {valid_time:.2f}")
 # x = np.arange(real.shape[1]) * time_step / 20.83
 x = np.arange(real.shape[1]) * time_step / 11.11
 y = np.arange(real.shape[0]) * periodicity_length / num_grid_points
@@ -198,7 +196,7 @@ ax.set_xlabel("$t$")
 fig.colorbar(pcm, ax = ax, label = "$u(x, t)$")
 plt.savefig(f"Images/actual_{resparams['N']}_B{resparams['bias']}_sig{resparams['sigma']}_trans{transient_length}.png")
 fig, ax = plt.subplots(constrained_layout = True)
-ax.set_title("Kursiv_Predict")
+ax.set_title(f"Kursiv_Predict - VPT: {valid_time:.2f}")
 # x = np.arange(predictions.shape[1]) * time_step / 20.83
 x = np.arange(predictions.shape[1]) * time_step / 11.11
 y = np.arange(predictions.shape[0]) * periodicity_length / num_grid_points
