@@ -1,8 +1,10 @@
 import numpy as np
 
+
 def chop_data(data, IPR, overlap, step):
     index = np.arange(data.shape[0])
     return data[np.roll(index, -IPR * step + overlap)[0: IPR + 2 * overlap], :].copy()
+
 
 def reservoir_layer(A, W_in, input, resparams, batch_len, discard_length):
     """TODO"""
@@ -31,12 +33,13 @@ def fit_output_weight(resparams, input, reservoir, W_in, discard, batch_len=1000
     VS_T = np.zeros((IPR, N))
 
     reservoir_states = list()
-
+    # for chunk in range(1):
     for chunk in range(num_inputs // IPR):
 
         loc = chop_data(input, IPR, overlap, chunk)
         data = loc[overlap: -overlap, :train_length]
-
+        # is repeatedly cutting at training_length necessary in the two lines below? isn't that done in data above?
+        # Also, could prolly optimize by taking out the numpy arange or something like that. Feel like generating that every time is dumb
         V_batches = np.split(data[:, batch_len + discard: train_length], np.arange(0, data[:, batch_len + discard: train_length].shape[1], batch_len), axis=1)
         S_batches = np.split(loc[:, batch_len + discard: train_length], np.arange(0, loc[:, batch_len + discard: train_length].shape[1], batch_len), axis=1)
 

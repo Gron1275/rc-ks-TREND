@@ -4,11 +4,13 @@ import rc_single_output_weight as rc
 import prediction_analysis
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 #from ks_integration import periodicity_length, num_grid_points, time_step
 
 #from memory_profiler import profile
 import predict_single_output_layer
+
 
 #@profile
 def train_parallel_rc(
@@ -20,9 +22,6 @@ def train_parallel_rc(
         discard_length: int = 1000,
         square_nodes: bool = True
         ):
-
-    #out_weights = list()
-    #reservoirs_states = list()
 
     num_inputs = resparams['num_inputs']
     degree = resparams['degree']
@@ -54,7 +53,7 @@ def train_parallel_rc(
         res_size = nodes_num,
         sigma = sigma
         )
-    W_out, reservoirs_states = rc.fit_output_weight(resparams=resparams, input=input_data, reservoir=reservoir, W_in=in_weight, discard=discard_length, batch_len=batch_len, square_nodes=False)
+    W_out, reservoirs_states = rc.fit_output_weight(resparams=resparams, input=input_data, reservoir=reservoir, W_in=in_weight, discard=discard_length, batch_len=batch_len, square_nodes=square_nodes)
     # for i in range(num_inputs // inputs_per_reservoir):
     #     # i think that this could be done with multiprocessing. the fit output weights only differs by the parameter i
     #     # prob try to use multiprocessing.Pool here
@@ -85,52 +84,42 @@ def train_parallel_rc(
     return W_out, in_weight, reservoirs_states, reservoir
 
 
-
-    # reservoirs_states.append(rc.reservoir_layer()) maybe put this in a different for loop so you dont hafta regenerate everything
-# run the above for loop or perhaps with ndarrays find some way to vectorize and then once all that stuff is generated then do the
-# reservoir_layer() step
-
 def chop_data(data, n, m, step):
     index = np.arange(data.shape[0])
     # do this so it doesnt hafta query data. prolly should just have the parameter as num_inputs
     return data[np.roll(index, - n * step + m)[0: n + 2 * m], :].copy() # added .copy() hopefully to improve if there was mem leak
 
 
- # according to Solvable Model of Spatiotemporal Chaos (1993), for a system d < 3, correlation func should be exponential.
-    # so maybe for exp(-d), set overlay (d) st exp(-d) < error for some error threshold? Also, prolly needs to factor in_per_res somehow maybe like inputs_per_res/64?
-import time
-
 square_nodes = False
 time_step = 0.25
 prediction_steps = 1000
 transient_length = 200
-num_grid_points = 512
-periodicity_length = 200
-num_reservoirs = 64
-p = [0.6, 3, .1] #1] # spectral radius, degree, input scaling
+num_grid_points = 256
+periodicity_length = 100
+num_reservoirs = 16
+p = [0.6, 3, 0.1] #1] # spectral radius, degree, input scaling
 resparams = {
-    'N': 2000, # 6.08497359577532 at 1500 w degree 3, 5.0048007681229 at degree 10
+    'N': 1000, # 6.08497359577532 at 1500 w degree 3, 5.0048007681229 at degree 10
     # for some reason sometimes increasing the num of nodes decreases accuracy. weird.
     'num_inputs': num_grid_points,
     'radius': p[0],
     'degree': p[1],
     'nonlinear_func': np.tanh,
     'sigma': p[2],
-    'train_length': 38000, # when time was at 9000 in the ss it got to like 10 lambdas. with 15000 its only getting 5.28. why? with 29000 it gets 5.928
+    'train_length': 30000, # when time was at 9000 in the ss it got to like 10 lambdas. with 15000 its only getting 5.28. why? with 29000 it gets 5.928
     'beta': 0.0001,
-    'bias': 0.8, #0
-    'overlap': 12, #20, #10 # nates thought with issues arising from overlap being too big is prob right. what is correlation function between points
+    'bias': 1.3, #0
+    'overlap': 6, #20, #10 # nates thought with issues arising from overlap being too big is prob right. what is correlation function between points
     'inputs_per_reservoir' : 16
 }
 resparams["num_inputs"] = num_grid_points
 
 X = ks_integration.int_plot(
-    # time_range = resparams["train_length"] + transient_length,
-    time_range = 40000,
-    periodicity_length = periodicity_length,
-    num_grid_points = num_grid_points,
-    time_step = time_step,
-    plot = False
+    time_range=73000,
+    periodicity_length=periodicity_length,
+    num_grid_points=num_grid_points,
+    time_step=time_step,
+    plot=False
     )
 #X = np.load('X_seed0_L200_Q512_T100000_NOWWORKING.npy')
 #X = np.load('X_seed4_L22_Q64_T80000_NOWWORKING.npy')
@@ -188,6 +177,7 @@ fig, ax = plt.subplots(constrained_layout = True)
 ax.set_title(f"Kursiv_Actual - VPT: {valid_time:.2f}")
 # x = np.arange(real.shape[1]) * time_step / 20.83
 x = np.arange(real.shape[1]) * time_step / 11.11
+# x = np.arange(real.shape[1]) * time_step
 y = np.arange(real.shape[0]) * periodicity_length / num_grid_points
 x, y = np.meshgrid(x, y)
 pcm = ax.pcolormesh(x, y, real)
@@ -199,6 +189,8 @@ fig, ax = plt.subplots(constrained_layout = True)
 ax.set_title(f"Kursiv_Predict - VPT: {valid_time:.2f}")
 # x = np.arange(predictions.shape[1]) * time_step / 20.83
 x = np.arange(predictions.shape[1]) * time_step / 11.11
+# x = np.arange(predictions.shape[1]) * time_step
+
 y = np.arange(predictions.shape[0]) * periodicity_length / num_grid_points
 x, y = np.meshgrid(x, y)
 pcm = ax.pcolormesh(x, y, predictions)
