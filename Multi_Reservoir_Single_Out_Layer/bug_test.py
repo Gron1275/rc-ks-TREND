@@ -93,7 +93,7 @@ def chop_data(data, n, m, step):
 square_nodes = False
 time_step = 0.25
 prediction_steps = 1000
-transient_length = 200
+transient_length = 500
 num_grid_points = 256
 periodicity_length = 100
 num_reservoirs = 16
@@ -106,7 +106,7 @@ resparams = {
     'degree': p[1],
     'nonlinear_func': np.tanh,
     'sigma': p[2],
-    'train_length': 30000, # when time was at 9000 in the ss it got to like 10 lambdas. with 15000 its only getting 5.28. why? with 29000 it gets 5.928
+    'train_length': 35000, # when time was at 9000 in the ss it got to like 10 lambdas. with 15000 its only getting 5.28. why? with 29000 it gets 5.928
     'beta': 0.0001,
     'bias': 1.3, #0
     'overlap': 6, #20, #10 # nates thought with issues arising from overlap being too big is prob right. what is correlation function between points
@@ -144,65 +144,71 @@ I use ones that give good VPTS from parallel_2
 """
 
 test_out_weight = np.load("/Users/grennongurney/PycharmProjects/pythonProject16/Parallel_2/out_weights_XSEED11000_1000_B1.3_sig0.1_trans500_TL35000_IPR16.npy")
-predictions = predict_single_output_layer.parallel_predict(
-    out_weight = out_weight,
-    reservoir = reservoir,
-    in_weight = in_weight,
-    final_res_states = reservoirs_states,
-    time_steps = prediction_steps,
-    resparams = resparams,
-    square_nodes = square_nodes
-    )
-actual = X[:, resparams['train_length']: resparams['train_length'] + prediction_steps]
-print(f'Predict shape :{predictions.shape}')
-print(f'X shape: {X.shape}')
-t_pred = np.linspace(0, prediction_steps * time_step - time_step, prediction_steps)
-t_pred /= 11.11  # Lyapunov time for L=200
+valid_times = list()
+for i in range(8):
+    predictions = predict_single_output_layer.parallel_predict(
+        out_weight = test_out_weight[i],
+        reservoir = reservoir,
+        in_weight = in_weight,
+        final_res_states = reservoirs_states,
+        time_steps = prediction_steps,
+        resparams = resparams,
+        square_nodes = square_nodes
+        )
+    actual = X[:, resparams['train_length']: resparams['train_length'] + prediction_steps]
+    print(f'Predict shape :{predictions.shape}')
+    print(f'X shape: {X.shape}')
+    t_pred = np.linspace(0, prediction_steps * time_step - time_step, prediction_steps)
+    t_pred /= 11.11  # Lyapunov time for L=200
 
-real = actual
+    real = actual
 
-valid_time = prediction_analysis.valid_time(predictions, real, t_pred)
+#     valid_time = prediction_analysis.valid_time(predictions, real, t_pred)
+#     valid_times.append(valid_time)
+#     print(f'Valid time for weight layer {i}: {valid_time}')
+# valid_times_Array = np.array(valid_times)
+# np.save("valid_times_arrayHARDER", valid_times_Array)
 
-fig, ax = plt.subplots(constrained_layout = True)
-ax.set_title(f"Kursiv_Overlay - VPT: {valid_time:.2f}")
-# x = np.arange((predictions-real).shape[1]) * time_step / 20.83
-x = np.arange((predictions-real).shape[1]) * time_step / 11.11
-y = np.arange((predictions-real).shape[0]) * periodicity_length / num_grid_points
-x, y = np.meshgrid(x, y)
-# pcm = ax.pcolormesh(x, y, np.abs(predictions-real))
-pcm = ax.pcolormesh(x, y, predictions-real)
-ax.set_ylabel("$x$")
-ax.set_xlabel("$t$")
-fig.colorbar(pcm, ax = ax, label = "$overlay(x, t)$")
-plt.savefig(f"Images/overlay_{resparams['N']}_B{resparams['bias']}_sig{resparams['sigma']}_trans{transient_length}.png")
+    fig, ax = plt.subplots(constrained_layout = True)
+    ax.set_title(f"Kursiv_Overlay")
+    # x = np.arange((predictions-real).shape[1]) * time_step / 20.83
+    x = np.arange((predictions-real).shape[1]) * time_step / 11.11
+    y = np.arange((predictions-real).shape[0]) * periodicity_length / num_grid_points
+    x, y = np.meshgrid(x, y)
+    # pcm = ax.pcolormesh(x, y, np.abs(predictions-real))
+    pcm = ax.pcolormesh(x, y, predictions-real)
+    ax.set_ylabel("$x$")
+    ax.set_xlabel("$t$")
+    fig.colorbar(pcm, ax = ax, label = "$overlay(x, t)$")
+    plt.savefig(f"Images/Test_Graphs/num{i}overlay_{resparams['N']}_B{resparams['bias']}_sig{resparams['sigma']}_trans{transient_length}.png")
 
-print(f'Valid time: {valid_time}')
-print(f'real shape {real.shape}')
-print(f'predict shape {predictions.shape}')
-fig, ax = plt.subplots(constrained_layout = True)
-ax.set_title(f"Kursiv_Actual - VPT: {valid_time:.2f}")
-# x = np.arange(real.shape[1]) * time_step / 20.83
-x = np.arange(real.shape[1]) * time_step / 11.11
-# x = np.arange(real.shape[1]) * time_step
-y = np.arange(real.shape[0]) * periodicity_length / num_grid_points
-x, y = np.meshgrid(x, y)
-pcm = ax.pcolormesh(x, y, real)
-ax.set_ylabel("$x$")
-ax.set_xlabel("$t$")
-fig.colorbar(pcm, ax = ax, label = "$u(x, t)$")
-plt.savefig(f"Images/actual_{resparams['N']}_B{resparams['bias']}_sig{resparams['sigma']}_trans{transient_length}.png")
-fig, ax = plt.subplots(constrained_layout = True)
-ax.set_title(f"Kursiv_Predict - VPT: {valid_time:.2f}")
-# x = np.arange(predictions.shape[1]) * time_step / 20.83
-x = np.arange(predictions.shape[1]) * time_step / 11.11
-# x = np.arange(predictions.shape[1]) * time_step
 
-y = np.arange(predictions.shape[0]) * periodicity_length / num_grid_points
-x, y = np.meshgrid(x, y)
-pcm = ax.pcolormesh(x, y, predictions)
-ax.set_ylabel("$x$")
-ax.set_xlabel("$t$")
-fig.colorbar(pcm, ax = ax, label = "$pred(x, t)$")
-plt.savefig(f"Images/predict_{resparams['N']}_B{resparams['bias']}_sig{resparams['sigma']}_trans{transient_length}.png")
+    print(f'real shape {real.shape}')
+    print(f'predict shape {predictions.shape}')
+    fig, ax = plt.subplots(constrained_layout = True)
+    ax.set_title(f"Kursiv_Actual")
+    # x = np.arange(real.shape[1]) * time_step / 20.83
+    x = np.arange(real.shape[1]) * time_step / 11.11
+    # x = np.arange(real.shape[1]) * time_step
+    y = np.arange(real.shape[0]) * periodicity_length / num_grid_points
+    x, y = np.meshgrid(x, y)
+    pcm = ax.pcolormesh(x, y, real)
+    ax.set_ylabel("$x$")
+    ax.set_xlabel("$t$")
+    fig.colorbar(pcm, ax = ax, label = "$u(x, t)$")
+    plt.savefig(f"Images/Test_Graphs/num{i}actual_{resparams['N']}_B{resparams['bias']}_sig{resparams['sigma']}_trans{transient_length}.png")
+    fig, ax = plt.subplots(constrained_layout = True)
+    ax.set_title(f"Kursiv_Predict")
+    # x = np.arange(predictions.shape[1]) * time_step / 20.83
+    x = np.arange(predictions.shape[1]) * time_step / 11.11
+    # x = np.arange(predictions.shape[1]) * time_step
+
+    y = np.arange(predictions.shape[0]) * periodicity_length / num_grid_points
+    x, y = np.meshgrid(x, y)
+    pcm = ax.pcolormesh(x, y, predictions)
+    ax.set_ylabel("$x$")
+    ax.set_xlabel("$t$")
+    fig.colorbar(pcm, ax = ax, label = "$pred(x, t)$")
+    plt.savefig(f"Images/Test_Graphs/num{i}predict_{resparams['N']}_B{resparams['bias']}_sig{resparams['sigma']}_trans{transient_length}.png")
 
 print(f'Time for {resparams["N"]}: {end - start}')
